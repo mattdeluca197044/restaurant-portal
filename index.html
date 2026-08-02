@@ -105,6 +105,11 @@
       <button class="logout" onclick="logout()">Log out</button>
       <h2 id="welcomeName">Dashboard</h2>
 
+      <div id="subscriptionBox" style="padding:14px 16px;border-radius:6px;margin:16px 0;background:var(--paper-dim);">
+        <div id="subStatusText" style="font-size:14px;"></div>
+        <button id="subscribeBtn" onclick="startCheckout()" style="display:none;margin-top:10px;">Subscribe — $29/month</button>
+      </div>
+
       <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 4px;">Linked Google listing</h3>
       <label>Google Places ID</label>
       <input id="placeIdInput" type="text" placeholder="ChIJ...">
@@ -265,6 +270,7 @@ function formatSlotTime(raw){
 
 async function loadDashboard(){
   document.getElementById('welcomeName').textContent = restaurantName || 'Dashboard';
+  loadSubscriptionStatus();
 
   // Load bookings (also tells us the restaurant id indirectly via auth)
   try {
@@ -287,6 +293,50 @@ async function loadDashboard(){
     }
   } catch(err){
     document.getElementById('bookingList').innerHTML = `<div class="msg error">Failed to load bookings: ${err.message}</div>`;
+  }
+}
+
+async function loadSubscriptionStatus(){
+  const statusText = document.getElementById('subStatusText');
+  const subBtn = document.getElementById('subscribeBtn');
+  try {
+    const res = await fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok){ statusText.textContent = 'Could not load subscription status.'; return; }
+
+    if (data.restaurant.subscription_status === 'active'){
+      statusText.innerHTML = '✅ <strong>Subscription active</strong> — your listing can accept bookings.';
+      subBtn.style.display = 'none';
+    } else {
+      statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
+      subBtn.style.display = 'block';
+    }
+  } catch(err){
+    statusText.textContent = 'Could not load subscription status.';
+  }
+}
+
+async function startCheckout(){
+  const subBtn = document.getElementById('subscribeBtn');
+  subBtn.disabled = true;
+  subBtn.textContent = 'Redirecting to payment...';
+  try {
+    const res = await fetch(`${API}/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.url){
+      alert(data.error || 'Could not start checkout.');
+      subBtn.disabled = false;
+      subBtn.textContent = 'Subscribe — $29/month';
+      return;
+    }
+    window.location.href = data.url;
+  } catch(err){
+    alert('Something went wrong: ' + err.message);
+    subBtn.disabled = false;
+    subBtn.textContent = 'Subscribe — $29/month';
   }
 }
 
