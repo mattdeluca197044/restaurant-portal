@@ -327,7 +327,7 @@ async function startCheckout(){
     });
     const data = await res.json();
     if (!res.ok || !data.url){
-      alert(data.error || 'Could not start checkout.');
+      alert((data.error || 'Could not start checkout.') + (data.detail ? '\n\nDetail: ' + data.detail : ''));
       subBtn.disabled = false;
       subBtn.textContent = 'Subscribe — $29/month';
       return;
