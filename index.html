@@ -115,7 +115,26 @@
       <input id="placeIdInput" type="text" placeholder="ChIJ...">
       <button onclick="updatePlaceId()">Save</button>
       <div id="placeIdMsg"></div>
+    </div>
 
+    <div class="card">
+      <h2>Business profile</h2>
+      <div id="profileLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
+        Subscribe to unlock editing your description and social links — these show on your listing for customers to see.
+      </div>
+      <label>Description</label>
+      <textarea id="profileDescription" rows="4" placeholder="Tell customers what makes your place special..." style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:4px;font-family:'Work Sans',sans-serif;resize:vertical;"></textarea>
+      <label>Instagram URL</label>
+      <input id="profileInstagram" type="text" placeholder="https://instagram.com/yourrestaurant">
+      <label>Facebook URL</label>
+      <input id="profileFacebook" type="text" placeholder="https://facebook.com/yourrestaurant">
+      <label>Website URL</label>
+      <input id="profileWebsite" type="text" placeholder="https://yourrestaurant.com">
+      <button id="saveProfileBtn" onclick="saveProfile()">Save profile</button>
+      <div id="profileMsg"></div>
+    </div>
+
+    <div class="card">
       <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:24px 0 4px;">Add a time slot</h3>
       <div class="row">
         <div>
@@ -299,20 +318,55 @@ async function loadDashboard(){
 async function loadSubscriptionStatus(){
   const statusText = document.getElementById('subStatusText');
   const subBtn = document.getElementById('subscribeBtn');
+  const profileLocked = document.getElementById('profileLockedMsg');
+  const saveProfileBtn = document.getElementById('saveProfileBtn');
   try {
     const res = await fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
     if (!res.ok){ statusText.textContent = 'Could not load subscription status.'; return; }
 
-    if (data.restaurant.subscription_status === 'active'){
+    const isActive = data.restaurant.subscription_status === 'active';
+
+    if (isActive){
       statusText.innerHTML = '✅ <strong>Subscription active</strong> — your listing can accept bookings.';
       subBtn.style.display = 'none';
+      profileLocked.style.display = 'none';
+      saveProfileBtn.disabled = false;
     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
+      profileLocked.style.display = 'block';
+      saveProfileBtn.disabled = true;
     }
+
+    document.getElementById('profileDescription').value = data.restaurant.description || '';
+    document.getElementById('profileInstagram').value = data.restaurant.instagram_url || '';
+    document.getElementById('profileFacebook').value = data.restaurant.facebook_url || '';
+    document.getElementById('profileWebsite').value = data.restaurant.website_url || '';
   } catch(err){
     statusText.textContent = 'Could not load subscription status.';
+  }
+}
+
+async function saveProfile(){
+  const msgEl = document.getElementById('profileMsg');
+  const body = {
+    description: document.getElementById('profileDescription').value.trim(),
+    instagramUrl: document.getElementById('profileInstagram').value.trim(),
+    facebookUrl: document.getElementById('profileFacebook').value.trim(),
+    websiteUrl: document.getElementById('profileWebsite').value.trim(),
+  };
+  try {
+    const res = await fetch(`${API}/update-profile`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok){ showMsg('profileMsg', data.error || 'Failed to save.', 'error'); return; }
+    showMsg('profileMsg', 'Profile saved — this now shows on your listing.', 'success');
+  } catch(err){
+    showMsg('profileMsg', 'Something went wrong: ' + err.message, 'error');
   }
 }
 
