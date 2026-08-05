@@ -130,6 +130,8 @@
       <input id="profileFacebook" type="text" placeholder="https://facebook.com/yourrestaurant">
       <label>Website URL</label>
       <input id="profileWebsite" type="text" placeholder="https://yourrestaurant.com">
+      <label>Current Special / Promotion <span style="font-weight:400;color:var(--text-dim);">(shows as a highlight on your listing)</span></label>
+      <input id="profileSpecial" type="text" placeholder="e.g. 20% off Tuesdays, Happy hour 5-7pm" maxlength="200">
       <button id="saveProfileBtn" onclick="saveProfile()">Save profile</button>
       <div id="profileMsg"></div>
     </div>
@@ -343,6 +345,7 @@ async function loadSubscriptionStatus(){
     document.getElementById('profileInstagram').value = data.restaurant.instagram_url || '';
     document.getElementById('profileFacebook').value = data.restaurant.facebook_url || '';
     document.getElementById('profileWebsite').value = data.restaurant.website_url || '';
+    document.getElementById('profileSpecial').value = data.restaurant.current_special || '';
   } catch(err){
     statusText.textContent = 'Could not load subscription status.';
   }
@@ -355,6 +358,7 @@ async function saveProfile(){
     instagramUrl: document.getElementById('profileInstagram').value.trim(),
     facebookUrl: document.getElementById('profileFacebook').value.trim(),
     websiteUrl: document.getElementById('profileWebsite').value.trim(),
+    currentSpecial: document.getElementById('profileSpecial').value.trim(),
   };
   try {
     const res = await fetch(`${API}/update-profile`, {
