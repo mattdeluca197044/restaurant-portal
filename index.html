@@ -78,6 +78,19 @@
   }
   .upload-photo-btn:hover{background:var(--paper-dim);border-color:var(--brass-bright);}
   .upload-photo-btn:disabled{border-color:var(--line);color:var(--text-dim);background:transparent;}
+
+  .stats-toggle{display:flex;gap:6px;margin-bottom:16px;}
+  .stats-toggle-btn{
+    width:auto;margin-top:0;padding:7px 14px;font-size:12.5px;
+    background:transparent;color:var(--text-dim);border:1px solid var(--line);
+  }
+  .stats-toggle-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .stats-toggle-btn:hover{background:var(--paper-dim);}
+  .stats-toggle-btn.active:hover{background:var(--brass-bright);}
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stat-box{background:var(--paper-dim);border-radius:6px;padding:16px;text-align:center;}
+  .stat-box .num{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--ink);}
+  .stat-box .label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);margin-top:4px;}
 </style>
 </head>
 <body>
@@ -188,6 +201,15 @@
       <input type="file" id="photoFileInput" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none;" onchange="handlePhotoSelected(event)">
       <button class="upload-photo-btn" id="uploadPhotoBtn" onclick="document.getElementById('photoFileInput').click()">+ Add photo</button>
       <div id="photoMsg"></div>
+    </div>
+
+    <div class="card" id="statsCard" style="display:none;">
+      <h2>Your Stats</h2>
+      <div class="stats-toggle">
+        <button class="stats-toggle-btn active" id="statsToggle30" onclick="setStatsPeriod(30)">Last 30 days</button>
+        <button class="stats-toggle-btn" id="statsToggle7" onclick="setStatsPeriod(7)">Last 7 days</button>
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
     </div>
 
     <div class="card">
@@ -485,6 +507,7 @@ async function loadSubscriptionStatus(){
 
     currentPhotos = data.restaurant.photos || [];
     renderPhotoGrid();
+    loadStats();
   } catch(err){
     statusText.textContent = 'Could not load subscription status.';
   }
@@ -511,6 +534,51 @@ async function saveProfile(){
   } catch(err){
     showMsg('profileMsg', 'Something went wrong: ' + err.message, 'error');
   }
+}
+
+let statsData = null;
+let statsPeriod = 30;
+
+const STAT_LABELS = {
+  view: 'Listing views',
+  directions: 'Directions clicks',
+  website: 'Website clicks',
+  book_click: 'Booking attempts',
+};
+
+async function loadStats(){
+  try {
+    const res = await fetch(`${API}/listing-analytics`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok || !data.hasListing) {
+      document.getElementById('statsCard').style.display = 'none';
+      return;
+    }
+    statsData = data;
+    document.getElementById('statsCard').style.display = 'block';
+    renderStats();
+  } catch (err) {
+    document.getElementById('statsCard').style.display = 'none';
+  }
+}
+
+function setStatsPeriod(days){
+  statsPeriod = days;
+  document.getElementById('statsToggle30').classList.toggle('active', days === 30);
+  document.getElementById('statsToggle7').classList.toggle('active', days === 7);
+  renderStats();
+}
+
+function renderStats(){
+  if (!statsData) return;
+  const counts = statsPeriod === 30 ? statsData.last30Days : statsData.last7Days;
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = Object.entries(STAT_LABELS).map(([key, label]) => `
+    <div class="stat-box">
+      <div class="num">${(counts[key] || 0).toLocaleString()}</div>
+      <div class="label">${label}</div>
+    </div>
+  `).join('');
 }
 
 function renderPhotoGrid(){
