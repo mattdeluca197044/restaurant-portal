@@ -103,6 +103,17 @@
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button onclick="login()">Log in</button>
         <div id="loginMsg"></div>
+        <button class="secondary" style="margin-top:10px;" onclick="toggleForgotPassword()">Forgot password?</button>
+      </div>
+
+      <div id="forgotForm" style="display:none;">
+        <h2>Reset your password</h2>
+        <p style="font-size:13px;color:var(--text-dim);margin:0 0 10px;">Enter the email on your account and we'll send you a link to set a new password.</p>
+        <label>Email</label>
+        <input id="forgotEmail" type="email" placeholder="you@restaurant.com">
+        <button onclick="sendResetLink()">Send reset link</button>
+        <div id="forgotMsg"></div>
+        <button class="secondary" style="margin-top:10px;" onclick="toggleForgotPassword()">Back to log in</button>
       </div>
 
       <div id="signupForm" style="display:none;">
@@ -117,6 +128,16 @@
         <input id="suPassword" type="password" placeholder="••••••••">
         <button onclick="signup()">Create account</button>
         <div id="signupMsg"></div>
+      </div>
+
+      <div id="resetPasswordForm" style="display:none;">
+        <h2>Set a new password</h2>
+        <label>New password <span style="font-weight:400;">(min 8 characters)</span></label>
+        <input id="rpNewPassword" type="password" placeholder="••••••••">
+        <label>Confirm new password</label>
+        <input id="rpConfirmPassword" type="password" placeholder="••••••••">
+        <button onclick="submitNewPassword()">Set new password</button>
+        <div id="resetPasswordMsg"></div>
       </div>
     </div>
   </div>
@@ -215,6 +236,81 @@ tabSignup.onclick = () => { tabSignup.classList.add('active'); tabLogin.classLis
 function showMsg(id, text, type){
   const el = document.getElementById(id);
   el.innerHTML = `<div class="msg ${type}">${text}</div>`;
+}
+
+function toggleForgotPassword(){
+  const showingForgot = document.getElementById('forgotForm').style.display === 'block';
+  document.getElementById('forgotForm').style.display = showingForgot ? 'none' : 'block';
+  document.getElementById('loginForm').style.display = showingForgot ? 'block' : 'none';
+  document.querySelector('.tabs').style.display = showingForgot ? 'flex' : 'none';
+}
+
+async function sendResetLink(){
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email){ showMsg('forgotMsg', 'Enter your email.', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API}/forgot-password`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    // Always the same message, whether or not the account exists —
+    // matches the backend's behavior so nothing leaks account existence.
+    showMsg('forgotMsg', data.message || "If an account exists with that email, a reset link has been sent.", 'success');
+  } catch(err){
+    showMsg('forgotMsg', 'Something went wrong: ' + err.message, 'error');
+  }
+}
+
+// If arriving from the "Set a new password" link in a reset email, show
+// only that form — hiding login/signup/forgot entirely, since a reset
+// token is single-purpose and shouldn't be mixed with the normal flows.
+function checkResetTokenFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const resetToken = params.get('token');
+  if (params.get('reset') !== '1' || !resetToken) return false;
+
+  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('forgotForm').style.display = 'none';
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('resetPasswordForm').style.display = 'block';
+  document.getElementById('resetPasswordForm').dataset.token = resetToken;
+  return true;
+}
+
+async function submitNewPassword(){
+  const token = document.getElementById('resetPasswordForm').dataset.token;
+  const newPassword = document.getElementById('rpNewPassword').value;
+  const confirmPassword = document.getElementById('rpConfirmPassword').value;
+
+  if (!newPassword || newPassword.length < 8){
+    showMsg('resetPasswordMsg', 'Password must be at least 8 characters.', 'error');
+    return;
+  }
+  if (newPassword !== confirmPassword){
+    showMsg('resetPasswordMsg', "Passwords don't match.", 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/reset-password`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ token, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok){ showMsg('resetPasswordMsg', data.error || 'Reset failed.', 'error'); return; }
+
+    showMsg('resetPasswordMsg', 'Password updated — you can now log in with your new password.', 'success');
+    document.getElementById('rpNewPassword').value = '';
+    document.getElementById('rpConfirmPassword').value = '';
+    setTimeout(() => {
+      window.location.href = window.location.pathname; // drop the token from the URL, land on a clean login screen
+    }, 2000);
+  } catch(err){
+    showMsg('resetPasswordMsg', 'Something went wrong: ' + err.message, 'error');
+  }
 }
 
 async function signup(){
@@ -554,7 +650,10 @@ function prefillClaimFromUrl(){
 
 const claimIntent = new URLSearchParams(window.location.search).get('claim') === '1';
 
-if (token && claimIntent){
+if (checkResetTokenFromUrl()) {
+  // Reset form is now showing — skip all the login/dashboard/claim logic
+  // below entirely, regardless of whether a session token already exists.
+} else if (token && claimIntent){
   // Already logged in as some account, but arrived via a "claim this
   // listing" link for a (presumably different) business — silently
   // showing the existing dashboard would just ignore what they came here
