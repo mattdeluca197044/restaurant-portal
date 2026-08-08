@@ -538,21 +538,43 @@ function showDashboard(){
   loadDashboard();
 }
 
-if (token) showDashboard();
-
 // If arriving from an unclaimed listing's "Claim your listing now" link,
 // pre-fill the signup form with the Place ID and business name already
 // known from that listing, rather than making the owner look them up.
 function prefillClaimFromUrl(){
   const params = new URLSearchParams(window.location.search);
-  if (params.get('claim') !== '1') return;
+  if (params.get('claim') !== '1') return null;
   const placeId = params.get('placeId');
   const name = params.get('name');
-  if (placeId) document.getElementById('suPlaceId').value = placeId;
-  if (name) document.getElementById('suName').value = name;
-  if (placeId || name) tabSignup.click();
+  document.getElementById('suPlaceId').value = placeId || '';
+  document.getElementById('suName').value = name || '';
+  tabSignup.click();
+  return { placeId, name };
 }
-prefillClaimFromUrl();
+
+const claimIntent = new URLSearchParams(window.location.search).get('claim') === '1';
+
+if (token && claimIntent){
+  // Already logged in as some account, but arrived via a "claim this
+  // listing" link for a (presumably different) business — silently
+  // showing the existing dashboard would just ignore what they came here
+  // to do. Ask explicitly instead, so the intent isn't lost.
+  const wantsFresh = confirm(
+    `You're currently logged in as "${restaurantName}".\n\n` +
+    `To claim this listing as a separate business, you'll need to log out and create a new account for it.\n\n` +
+    `Log out now and continue?`
+  );
+  if (wantsFresh){
+    logout();
+    prefillClaimFromUrl();
+  } else {
+    showDashboard();
+  }
+} else if (token){
+  showDashboard();
+} else {
+  prefillClaimFromUrl();
+}
 </script>
 </body>
 </html>
