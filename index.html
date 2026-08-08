@@ -539,6 +539,20 @@ function showDashboard(){
 }
 
 if (token) showDashboard();
+
+// If arriving from an unclaimed listing's "Claim your listing now" link,
+// pre-fill the signup form with the Place ID and business name already
+// known from that listing, rather than making the owner look them up.
+function prefillClaimFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('claim') !== '1') return;
+  const placeId = params.get('placeId');
+  const name = params.get('name');
+  if (placeId) document.getElementById('suPlaceId').value = placeId;
+  if (name) document.getElementById('suName').value = name;
+  if (placeId || name) tabSignup.click();
+}
+prefillClaimFromUrl();
 </script>
 </body>
 </html>
