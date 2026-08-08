@@ -38,6 +38,7 @@
   button:hover{background:var(--brass-bright);}
   button.secondary{background:transparent;color:var(--ink);border:1px solid var(--ink);}
   button.secondary:hover{background:var(--paper-dim);}
+  button:disabled{background:var(--line);color:var(--text-dim);cursor:not-allowed;}
 
   .msg{font-size:13px;padding:10px 12px;border-radius:var(--radius);margin-top:14px;}
   .msg.error{background:#FCEBEB;color:#791F1F;}
@@ -57,6 +58,26 @@
 
   .empty{color:var(--text-dim);font-size:13px;padding:16px 0;text-align:center;}
   .logout{background:none;border:none;color:#FBDAD9;font-size:12px;text-decoration:underline;cursor:pointer;padding:0;width:auto;margin:0;float:right;}
+
+  .photo-count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);margin-bottom:12px;}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-bottom:14px;}
+  .photo-thumb{
+    position:relative;aspect-ratio:1;border-radius:var(--radius);overflow:hidden;
+    background:var(--paper-dim);border:1px solid var(--line);
+  }
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-thumb .remove-photo{
+    position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;
+    background:rgba(36,20,18,0.75);color:#fff;border:none;font-size:14px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0;
+  }
+  .photo-thumb .remove-photo:hover{background:var(--ink);}
+  .upload-photo-btn{
+    border:1.5px dashed var(--line);background:transparent;color:var(--ink-soft);
+    font-size:13px;font-weight:600;padding:10px;margin-top:0;
+  }
+  .upload-photo-btn:hover{background:var(--paper-dim);border-color:var(--brass-bright);}
+  .upload-photo-btn:disabled{border-color:var(--line);color:var(--text-dim);background:transparent;}
 </style>
 </head>
 <body>
@@ -137,6 +158,18 @@
     </div>
 
     <div class="card">
+      <h2>Photos</h2>
+      <div id="photosLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
+        Subscribe to unlock uploading photos — these show on your listing and can appear in the homepage Specials section.
+      </div>
+      <div class="photo-count" id="photoCount">0 / 5 photos</div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <input type="file" id="photoFileInput" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none;" onchange="handlePhotoSelected(event)">
+      <button class="upload-photo-btn" id="uploadPhotoBtn" onclick="document.getElementById('photoFileInput').click()">+ Add photo</button>
+      <div id="photoMsg"></div>
+    </div>
+
+    <div class="card">
       <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:24px 0 4px;">Add a time slot</h3>
       <div class="row">
         <div>
@@ -167,6 +200,9 @@
 const API = "https://eat-out-oz.vercel.app/api";
 let token = localStorage.getItem("outtoeat_token") || null;
 let restaurantName = localStorage.getItem("outtoeat_restaurant_name") || "";
+let currentPhotos = [];
+let subscriptionActive = false;
+const MAX_PHOTOS = 5;
 
 const tabLogin = document.getElementById('tabLogin');
 const tabSignup = document.getElementById('tabSignup');
@@ -322,23 +358,27 @@ async function loadSubscriptionStatus(){
   const subBtn = document.getElementById('subscribeBtn');
   const profileLocked = document.getElementById('profileLockedMsg');
   const saveProfileBtn = document.getElementById('saveProfileBtn');
+  const photosLocked = document.getElementById('photosLockedMsg');
   try {
     const res = await fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
     if (!res.ok){ statusText.textContent = 'Could not load subscription status.'; return; }
 
     const isActive = data.restaurant.subscription_status === 'active';
+    subscriptionActive = isActive;
 
     if (isActive){
       statusText.innerHTML = '✅ <strong>Subscription active</strong> — your listing can accept bookings.';
       subBtn.style.display = 'none';
       profileLocked.style.display = 'none';
       saveProfileBtn.disabled = false;
+      photosLocked.style.display = 'none';
     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
       profileLocked.style.display = 'block';
       saveProfileBtn.disabled = true;
+      photosLocked.style.display = 'block';
     }
 
     document.getElementById('profileDescription').value = data.restaurant.description || '';
@@ -346,6 +386,9 @@ async function loadSubscriptionStatus(){
     document.getElementById('profileFacebook').value = data.restaurant.facebook_url || '';
     document.getElementById('profileWebsite').value = data.restaurant.website_url || '';
     document.getElementById('profileSpecial').value = data.restaurant.current_special || '';
+
+    currentPhotos = data.restaurant.photos || [];
+    renderPhotoGrid();
   } catch(err){
     statusText.textContent = 'Could not load subscription status.';
   }
@@ -371,6 +414,97 @@ async function saveProfile(){
     showMsg('profileMsg', 'Profile saved — this now shows on your listing.', 'success');
   } catch(err){
     showMsg('profileMsg', 'Something went wrong: ' + err.message, 'error');
+  }
+}
+
+function renderPhotoGrid(){
+  const grid = document.getElementById('photoGrid');
+  const countEl = document.getElementById('photoCount');
+  const uploadBtn = document.getElementById('uploadPhotoBtn');
+
+  countEl.textContent = `${currentPhotos.length} / ${MAX_PHOTOS} photos`;
+
+  grid.innerHTML = currentPhotos.map(url => `
+    <div class="photo-thumb">
+      <img src="${url}" alt="Restaurant photo" loading="lazy">
+      <button class="remove-photo" title="Delete photo" onclick="deletePhoto('${url.replace(/'/g,"&#39;")}')">×</button>
+    </div>
+  `).join('');
+
+  const atLimit = currentPhotos.length >= MAX_PHOTOS;
+  uploadBtn.disabled = !subscriptionActive || atLimit;
+  uploadBtn.textContent = atLimit ? "You've reached the 5-photo limit" : "+ Add photo";
+}
+
+function handlePhotoSelected(event){
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // reset so selecting the same file again still fires 'change'
+  if (!file) return;
+
+  const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const MAX_BYTES = 5 * 1024 * 1024; // 5MB — matches the backend's limit, checked here first for instant feedback
+
+  if (!ALLOWED_TYPES.includes(file.type)){
+    showMsg('photoMsg', 'Please choose a JPEG, PNG, or WebP image.', 'error');
+    return;
+  }
+  if (file.size > MAX_BYTES){
+    showMsg('photoMsg', 'That image is too large (max 5MB).', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => uploadPhoto(reader.result);
+  reader.onerror = () => showMsg('photoMsg', 'Could not read that file — please try again.', 'error');
+  reader.readAsDataURL(file);
+}
+
+async function uploadPhoto(imageBase64){
+  const uploadBtn = document.getElementById('uploadPhotoBtn');
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading...';
+  document.getElementById('photoMsg').innerHTML = '';
+
+  try {
+    const res = await fetch(`${API}/upload-photo`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify({ imageBase64 })
+    });
+    const data = await res.json();
+    if (!res.ok){
+      showMsg('photoMsg', data.error || 'Upload failed.', 'error');
+      renderPhotoGrid(); // restores the button's normal enabled/label state
+      return;
+    }
+    currentPhotos = data.photos || currentPhotos;
+    renderPhotoGrid();
+    showMsg('photoMsg', 'Photo added.', 'success');
+  } catch(err){
+    showMsg('photoMsg', 'Something went wrong: ' + err.message, 'error');
+    renderPhotoGrid();
+  }
+}
+
+async function deletePhoto(photoUrl){
+  if (!confirm('Remove this photo from your listing?')) return;
+
+  try {
+    const res = await fetch(`${API}/delete-photo`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify({ photoUrl })
+    });
+    const data = await res.json();
+    if (!res.ok){
+      showMsg('photoMsg', data.error || 'Could not delete that photo.', 'error');
+      return;
+    }
+    currentPhotos = data.photos || currentPhotos.filter(p => p !== photoUrl);
+    renderPhotoGrid();
+    showMsg('photoMsg', 'Photo removed.', 'success');
+  } catch(err){
+    showMsg('photoMsg', 'Something went wrong: ' + err.message, 'error');
   }
 }
 
