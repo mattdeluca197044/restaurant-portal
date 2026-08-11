@@ -113,6 +113,27 @@
   }
   .upload-menu-btn:hover{background:var(--paper-dim);border-color:var(--brass-bright);}
   .upload-menu-btn:disabled{border-color:var(--line);color:var(--text-dim);background:transparent;}
+
+  .benefits-card h2{margin-bottom:6px;}
+  .benefits-sub{font-size:13.5px;color:var(--text-dim);margin:0 0 20px;line-height:1.5;}
+  .benefit-group{margin-bottom:22px;}
+  .benefit-group:last-of-type{margin-bottom:0;}
+  .benefit-group h3{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--ink);margin:0 0 10px;
+  }
+  .benefit-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;}
+  .benefit-list li{
+    display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text);
+  }
+  .benefit-list li::before{
+    content:"✓";flex-shrink:0;color:var(--sage);font-weight:700;font-size:13px;line-height:1.5;
+  }
+  .benefits-price{
+    margin:20px 0 0;padding:14px 16px;background:var(--paper-dim);border-radius:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);text-align:center;
+  }
+  .benefits-price strong{color:var(--ink);}
 </style>
 </head>
 <body>
@@ -123,6 +144,34 @@
 </header>
 
 <main>
+  <div class="card benefits-card">
+    <h2>What you get with outtoeat</h2>
+    <p class="benefits-sub">One flat monthly subscription. No commission, no per-booking fees.</p>
+
+    <div class="benefit-group">
+      <h3>Get seen</h3>
+      <ul class="benefit-list">
+        <li>Listed in live search across outtoeat, alongside every café, restaurant, and takeaway spot people are searching for</li>
+        <li>Appear in the homepage "Today's Specials" section whenever you're running a promotion</li>
+        <li>Show up in occasion searches like "Date night," "Special occasion," and "Near the water" when your listing fits</li>
+      </ul>
+    </div>
+
+    <div class="benefit-group">
+      <h3>Stay in control</h3>
+      <ul class="benefit-list">
+        <li>Edit your business name, address, and opening hours — shown exactly as you set them, not just whatever Google has on file</li>
+        <li>Write your own description and post a current special or promotion anytime</li>
+        <li>Upload up to 5 photos and your menu as a PDF customers can view instantly</li>
+        <li>Link your Instagram, Facebook, and website</li>
+        <li>Accept table bookings directly through your listing — no commission on any booking</li>
+        <li>Track performance with a stats dashboard: listing views, directions clicks, website clicks, and booking attempts</li>
+      </ul>
+    </div>
+
+    <div class="benefits-price"><strong>$29/month</strong> — cancel anytime. That's it, no hidden cuts.</div>
+  </div>
+
   <div id="authView">
     <div class="card">
       <div class="tabs">
