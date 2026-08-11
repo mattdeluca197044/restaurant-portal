@@ -91,6 +91,28 @@
   .stat-box{background:var(--paper-dim);border-radius:6px;padding:16px;text-align:center;}
   .stat-box .num{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--ink);}
   .stat-box .label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);margin-top:4px;}
+
+  .hours-grid{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+  .hours-row{display:flex;align-items:center;gap:10px;}
+  .hours-row .day-label{width:88px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);}
+  .hours-row input{margin:0;}
+
+  .menu-file-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 12px;background:var(--paper-dim);border-radius:var(--radius);font-size:13px;margin-bottom:10px;
+  }
+  .menu-file-row a{color:var(--ink);font-weight:600;text-decoration:none;}
+  .menu-file-row a:hover{text-decoration:underline;}
+  .menu-file-row button{
+    width:auto;margin:0;padding:6px 12px;font-size:12px;background:transparent;color:var(--rust);border:1px solid var(--line);
+  }
+  .menu-file-row button:hover{background:#FCEBEB;color:#791F1F;border-color:#791F1F;}
+  .upload-menu-btn{
+    border:1.5px dashed var(--line);background:transparent;color:var(--ink-soft);
+    font-size:13px;font-weight:600;padding:10px;margin-top:0;
+  }
+  .upload-menu-btn:hover{background:var(--paper-dim);border-color:var(--brass-bright);}
+  .upload-menu-btn:disabled{border-color:var(--line);color:var(--text-dim);background:transparent;}
 </style>
 </head>
 <body>
@@ -175,8 +197,12 @@
     <div class="card">
       <h2>Business profile</h2>
       <div id="profileLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
-        Subscribe to unlock editing your description and social links — these show on your listing for customers to see.
+        Subscribe to unlock editing your details — these show on your listing for customers to see.
       </div>
+      <label>Restaurant name</label>
+      <input id="profileName" type="text" placeholder="Your Restaurant Name" maxlength="200">
+      <label>Address <span style="font-weight:400;color:var(--text-dim);">(overrides the address shown from Google)</span></label>
+      <input id="profileAddress" type="text" placeholder="123 Example St, Suburb NSW 2000" maxlength="300">
       <label>Description</label>
       <textarea id="profileDescription" rows="4" placeholder="Tell customers what makes your place special..." style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:4px;font-family:'Work Sans',sans-serif;resize:vertical;"></textarea>
       <label>Instagram URL</label>
@@ -187,6 +213,10 @@
       <input id="profileWebsite" type="text" placeholder="https://yourrestaurant.com">
       <label>Current Special / Promotion <span style="font-weight:400;color:var(--text-dim);">(shows as a highlight on your listing)</span></label>
       <input id="profileSpecial" type="text" placeholder="e.g. 20% off Tuesdays, Happy hour 5-7pm" maxlength="200">
+
+      <label style="margin-top:20px;">Opening hours <span style="font-weight:400;color:var(--text-dim);">(overrides the hours shown from Google — leave a day blank to keep showing Google's hours for it)</span></label>
+      <div class="hours-grid" id="hoursGrid"></div>
+
       <button id="saveProfileBtn" onclick="saveProfile()">Save profile</button>
       <div id="profileMsg"></div>
     </div>
@@ -201,6 +231,17 @@
       <input type="file" id="photoFileInput" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none;" onchange="handlePhotoSelected(event)">
       <button class="upload-photo-btn" id="uploadPhotoBtn" onclick="document.getElementById('photoFileInput').click()">+ Add photo</button>
       <div id="photoMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Menu</h2>
+      <div id="menuLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
+        Subscribe to unlock uploading your menu — customers will be able to view it directly from your listing.
+      </div>
+      <div id="menuFileArea"></div>
+      <input type="file" id="menuFileInput" accept="application/pdf" style="display:none;" onchange="handleMenuSelected(event)">
+      <button class="upload-menu-btn" id="uploadMenuBtn" onclick="document.getElementById('menuFileInput').click()">+ Upload menu (PDF)</button>
+      <div id="menuMsg"></div>
     </div>
 
     <div class="card" id="statsCard" style="display:none;">
@@ -244,8 +285,10 @@ const API = "https://eat-out-oz.vercel.app/api";
 let token = localStorage.getItem("outtoeat_token") || null;
 let restaurantName = localStorage.getItem("outtoeat_restaurant_name") || "";
 let currentPhotos = [];
+let currentMenuUrl = null;
 let subscriptionActive = false;
 const MAX_PHOTOS = 5;
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const tabLogin = document.getElementById('tabLogin');
 const tabSignup = document.getElementById('tabSignup');
@@ -254,6 +297,19 @@ const signupForm = document.getElementById('signupForm');
 
 tabLogin.onclick = () => { tabLogin.classList.add('active'); tabSignup.classList.remove('active'); loginForm.style.display='block'; signupForm.style.display='none'; };
 tabSignup.onclick = () => { tabSignup.classList.add('active'); tabLogin.classList.remove('active'); signupForm.style.display='block'; loginForm.style.display='none'; };
+
+// Builds the seven day-name + text-input rows once, up front, so
+// saveProfile() can just read whatever's currently in them.
+function buildHoursGrid(){
+  const grid = document.getElementById('hoursGrid');
+  grid.innerHTML = DAY_NAMES.map(day => `
+    <div class="hours-row">
+      <span class="day-label">${day}</span>
+      <input type="text" id="hours_${day}" placeholder="e.g. 9:00 AM–5:00 PM or Closed" maxlength="50">
+    </div>
+  `).join('');
+}
+buildHoursGrid();
 
 function showMsg(id, text, type){
   const el = document.getElementById(id);
@@ -277,17 +333,12 @@ async function sendResetLink(){
       body: JSON.stringify({ email })
     });
     const data = await res.json();
-    // Always the same message, whether or not the account exists —
-    // matches the backend's behavior so nothing leaks account existence.
     showMsg('forgotMsg', data.message || "If an account exists with that email, a reset link has been sent.", 'success');
   } catch(err){
     showMsg('forgotMsg', 'Something went wrong: ' + err.message, 'error');
   }
 }
 
-// If arriving from the "Set a new password" link in a reset email, show
-// only that form — hiding login/signup/forgot entirely, since a reset
-// token is single-purpose and shouldn't be mixed with the normal flows.
 function checkResetTokenFromUrl(){
   const params = new URLSearchParams(window.location.search);
   const resetToken = params.get('token');
@@ -328,7 +379,7 @@ async function submitNewPassword(){
     document.getElementById('rpNewPassword').value = '';
     document.getElementById('rpConfirmPassword').value = '';
     setTimeout(() => {
-      window.location.href = window.location.pathname; // drop the token from the URL, land on a clean login screen
+      window.location.href = window.location.pathname;
     }, 2000);
   } catch(err){
     showMsg('resetPasswordMsg', 'Something went wrong: ' + err.message, 'error');
@@ -447,7 +498,6 @@ async function loadDashboard(){
   document.getElementById('welcomeName').textContent = restaurantName || 'Dashboard';
   loadSubscriptionStatus();
 
-  // Load bookings (also tells us the restaurant id indirectly via auth)
   try {
     const res = await fetch(`${API}/my-bookings`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
@@ -477,6 +527,7 @@ async function loadSubscriptionStatus(){
   const profileLocked = document.getElementById('profileLockedMsg');
   const saveProfileBtn = document.getElementById('saveProfileBtn');
   const photosLocked = document.getElementById('photosLockedMsg');
+  const menuLocked = document.getElementById('menuLockedMsg');
   try {
     const res = await fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
@@ -491,31 +542,61 @@ async function loadSubscriptionStatus(){
       profileLocked.style.display = 'none';
       saveProfileBtn.disabled = false;
       photosLocked.style.display = 'none';
+      menuLocked.style.display = 'none';
     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
       profileLocked.style.display = 'block';
       saveProfileBtn.disabled = true;
       photosLocked.style.display = 'block';
+      menuLocked.style.display = 'block';
     }
 
+    document.getElementById('profileName').value = data.restaurant.name || '';
+    document.getElementById('profileAddress').value = data.restaurant.custom_address || '';
     document.getElementById('profileDescription').value = data.restaurant.description || '';
     document.getElementById('profileInstagram').value = data.restaurant.instagram_url || '';
     document.getElementById('profileFacebook').value = data.restaurant.facebook_url || '';
     document.getElementById('profileWebsite').value = data.restaurant.website_url || '';
     document.getElementById('profileSpecial').value = data.restaurant.current_special || '';
 
+    const savedHours = data.restaurant.custom_hours || {};
+    DAY_NAMES.forEach(day => {
+      const input = document.getElementById(`hours_${day}`);
+      if (input) input.value = savedHours[day] || '';
+    });
+
     currentPhotos = data.restaurant.photos || [];
     renderPhotoGrid();
+
+    currentMenuUrl = data.restaurant.menu_url || null;
+    renderMenuArea();
+
     loadStats();
   } catch(err){
     statusText.textContent = 'Could not load subscription status.';
   }
 }
 
+function collectHours(){
+  const hours = {};
+  DAY_NAMES.forEach(day => {
+    const val = document.getElementById(`hours_${day}`).value.trim();
+    if (val) hours[day] = val;
+  });
+  return Object.keys(hours).length ? hours : null;
+}
+
 async function saveProfile(){
-  const msgEl = document.getElementById('profileMsg');
+  const name = document.getElementById('profileName').value.trim();
+  if (!name){
+    showMsg('profileMsg', 'Restaurant name is required.', 'error');
+    return;
+  }
   const body = {
+    name,
+    address: document.getElementById('profileAddress').value.trim(),
+    hours: collectHours(),
     description: document.getElementById('profileDescription').value.trim(),
     instagramUrl: document.getElementById('profileInstagram').value.trim(),
     facebookUrl: document.getElementById('profileFacebook').value.trim(),
@@ -530,6 +611,9 @@ async function saveProfile(){
     });
     const data = await res.json();
     if (!res.ok){ showMsg('profileMsg', data.error || 'Failed to save.', 'error'); return; }
+    restaurantName = name;
+    localStorage.setItem('outtoeat_restaurant_name', restaurantName);
+    document.getElementById('welcomeName').textContent = restaurantName;
     showMsg('profileMsg', 'Profile saved — this now shows on your listing.', 'success');
   } catch(err){
     showMsg('profileMsg', 'Something went wrong: ' + err.message, 'error');
@@ -602,11 +686,11 @@ function renderPhotoGrid(){
 
 function handlePhotoSelected(event){
   const file = event.target.files && event.target.files[0];
-  event.target.value = ''; // reset so selecting the same file again still fires 'change'
+  event.target.value = '';
   if (!file) return;
 
   const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-  const MAX_BYTES = 5 * 1024 * 1024; // 5MB — matches the backend's limit, checked here first for instant feedback
+  const MAX_BYTES = 5 * 1024 * 1024;
 
   if (!ALLOWED_TYPES.includes(file.type)){
     showMsg('photoMsg', 'Please choose a JPEG, PNG, or WebP image.', 'error');
@@ -638,7 +722,7 @@ async function uploadPhoto(imageBase64){
     const data = await res.json();
     if (!res.ok){
       showMsg('photoMsg', data.error || 'Upload failed.', 'error');
-      renderPhotoGrid(); // restores the button's normal enabled/label state
+      renderPhotoGrid();
       return;
     }
     currentPhotos = data.photos || currentPhotos;
@@ -672,6 +756,96 @@ async function deletePhoto(photoUrl){
   }
 }
 
+function renderMenuArea(){
+  const area = document.getElementById('menuFileArea');
+  const uploadBtn = document.getElementById('uploadMenuBtn');
+
+  if (currentMenuUrl){
+    area.innerHTML = `
+      <div class="menu-file-row">
+        <a href="${currentMenuUrl}" target="_blank" rel="noopener">📄 View current menu</a>
+        <button onclick="deleteMenu()">Remove</button>
+      </div>
+    `;
+    uploadBtn.textContent = 'Replace menu (PDF)';
+  } else {
+    area.innerHTML = '';
+    uploadBtn.textContent = '+ Upload menu (PDF)';
+  }
+
+  uploadBtn.disabled = !subscriptionActive;
+}
+
+function handleMenuSelected(event){
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  const MAX_BYTES = 10 * 1024 * 1024;
+
+  if (file.type !== 'application/pdf'){
+    showMsg('menuMsg', 'Please choose a PDF file.', 'error');
+    return;
+  }
+  if (file.size > MAX_BYTES){
+    showMsg('menuMsg', 'That file is too large (max 10MB).', 'error');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => uploadMenu(reader.result);
+  reader.onerror = () => showMsg('menuMsg', 'Could not read that file — please try again.', 'error');
+  reader.readAsDataURL(file);
+}
+
+async function uploadMenu(pdfBase64){
+  const uploadBtn = document.getElementById('uploadMenuBtn');
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading...';
+  document.getElementById('menuMsg').innerHTML = '';
+
+  try {
+    const res = await fetch(`${API}/upload-menu`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify({ pdfBase64 })
+    });
+    const data = await res.json();
+    if (!res.ok){
+      showMsg('menuMsg', data.error || 'Upload failed.', 'error');
+      renderMenuArea();
+      return;
+    }
+    currentMenuUrl = data.menuUrl || currentMenuUrl;
+    renderMenuArea();
+    showMsg('menuMsg', 'Menu uploaded.', 'success');
+  } catch(err){
+    showMsg('menuMsg', 'Something went wrong: ' + err.message, 'error');
+    renderMenuArea();
+  }
+}
+
+async function deleteMenu(){
+  if (!confirm('Remove your uploaded menu?')) return;
+
+  try {
+    const res = await fetch(`${API}/delete-menu`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`}
+    });
+    const data = await res.json();
+    if (!res.ok){
+      showMsg('menuMsg', data.error || 'Could not remove menu.', 'error');
+      return;
+    }
+    currentMenuUrl = null;
+    renderMenuArea();
+    showMsg('menuMsg', 'Menu removed.', 'success');
+  } catch(err){
+    showMsg('menuMsg', 'Something went wrong: ' + err.message, 'error');
+  }
+}
+
 async function startCheckout(){
   const subBtn = document.getElementById('subscribeBtn');
   subBtn.disabled = true;
@@ -702,9 +876,6 @@ function showDashboard(){
   loadDashboard();
 }
 
-// If arriving from an unclaimed listing's "Claim your listing now" link,
-// pre-fill the signup form with the Place ID and business name already
-// known from that listing, rather than making the owner look them up.
 function prefillClaimFromUrl(){
   const params = new URLSearchParams(window.location.search);
   if (params.get('claim') !== '1') return null;
@@ -719,13 +890,8 @@ function prefillClaimFromUrl(){
 const claimIntent = new URLSearchParams(window.location.search).get('claim') === '1';
 
 if (checkResetTokenFromUrl()) {
-  // Reset form is now showing — skip all the login/dashboard/claim logic
-  // below entirely, regardless of whether a session token already exists.
+  // Reset form is now showing — skip all the login/dashboard/claim logic below.
 } else if (token && claimIntent){
-  // Already logged in as some account, but arrived via a "claim this
-  // listing" link for a (presumably different) business — silently
-  // showing the existing dashboard would just ignore what they came here
-  // to do. Ask explicitly instead, so the intent isn't lost.
   const wantsFresh = confirm(
     `You're currently logged in as "${restaurantName}".\n\n` +
     `To claim this listing as a separate business, you'll need to log out and create a new account for it.\n\n` +
