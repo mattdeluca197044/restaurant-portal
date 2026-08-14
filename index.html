@@ -244,6 +244,21 @@
     </div>
 
     <div class="card">
+      <h2>Get your outtoeat badge</h2>
+      <div id="badgeLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
+        Subscribe to unlock your embeddable badge — add it to your own website to link back to your outtoeat listing.
+      </div>
+      <p style="font-size:13px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">
+        Show off your listing on your own website. Paste this snippet into your homepage and it'll display a small badge linking straight to your outtoeat page.
+      </p>
+      <div id="badgePreviewArea" style="margin-bottom:16px;"></div>
+      <label>Embed code</label>
+      <textarea id="badgeCodeBox" readonly rows="4" style="width:100%;padding:10px 12px;font-size:12px;font-family:'IBM Plex Mono',monospace;border:1px solid var(--line);border-radius:4px;resize:vertical;background:var(--paper-dim);color:var(--text);"></textarea>
+      <button onclick="copyBadgeCode()">Copy code</button>
+      <div id="badgeMsg"></div>
+    </div>
+
+    <div class="card">
       <h2>Business profile</h2>
       <div id="profileLockedMsg" style="display:none;color:var(--text-dim);font-size:13px;margin-bottom:12px;">
         Subscribe to unlock editing your details — these show on your listing for customers to see.
@@ -505,6 +520,7 @@ async function updatePlaceId(){
     const data = await res.json();
     if (!res.ok){ showMsg('placeIdMsg', data.error || 'Update failed.', 'error'); return; }
     showMsg('placeIdMsg', 'Saved — this restaurant is now linked to that listing.', 'success');
+    renderBadge(); // the badge links to this listing, so refresh it now that the ID's changed
   } catch(err){
     showMsg('placeIdMsg', 'Something went wrong: ' + err.message, 'error');
   }
@@ -577,6 +593,7 @@ async function loadSubscriptionStatus(){
   const saveProfileBtn = document.getElementById('saveProfileBtn');
   const photosLocked = document.getElementById('photosLockedMsg');
   const menuLocked = document.getElementById('menuLockedMsg');
+  const badgeLocked = document.getElementById('badgeLockedMsg');
   try {
     const res = await fetch(`${API}/me`, { headers: { 'Authorization': `Bearer ${token}` } });
     const data = await res.json();
@@ -592,6 +609,7 @@ async function loadSubscriptionStatus(){
       saveProfileBtn.disabled = false;
       photosLocked.style.display = 'none';
       menuLocked.style.display = 'none';
+      badgeLocked.style.display = 'none';
     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
@@ -599,7 +617,13 @@ async function loadSubscriptionStatus(){
       saveProfileBtn.disabled = true;
       photosLocked.style.display = 'block';
       menuLocked.style.display = 'block';
+      badgeLocked.style.display = 'block';
     }
+
+    // Was previously never pre-filled here, so the "Linked Google listing"
+    // box looked empty even for a restaurant that had already saved one —
+    // the badge below depends on this actually being populated on load.
+    document.getElementById('placeIdInput').value = data.restaurant.place_id || '';
 
     document.getElementById('profileName').value = data.restaurant.name || '';
     document.getElementById('profileAddress').value = data.restaurant.custom_address || '';
@@ -620,6 +644,8 @@ async function loadSubscriptionStatus(){
 
     currentMenuUrl = data.restaurant.menu_url || null;
     renderMenuArea();
+
+    renderBadge();
 
     loadStats();
   } catch(err){
@@ -823,6 +849,54 @@ function renderMenuArea(){
   }
 
   uploadBtn.disabled = !subscriptionActive;
+}
+
+// The badge is deliberately built with fully inline styles and no
+// external CSS/JS/font dependencies — it needs to render correctly no
+// matter what platform a restaurant pastes it into (WordPress, Wix,
+// Squarespace, a plain static site, etc.), where our own site's
+// stylesheet obviously isn't loaded.
+function buildBadgeHtml(placeId){
+  const listingUrl = `https://outtoeat.com.au/listing.html?place=${encodeURIComponent(placeId)}`;
+  return `<a href="${listingUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:#DE3937;color:#ffffff;text-decoration:none;border-radius:4px;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:700;line-height:1;">
+  <span style="font-size:15px;">★</span><span>Featured on <span style="font-style:italic;">outtoeat</span></span>
+</a>`;
+}
+
+function renderBadge(){
+  const placeId = (document.getElementById('placeIdInput').value || '').trim();
+  const previewArea = document.getElementById('badgePreviewArea');
+  const codeBox = document.getElementById('badgeCodeBox');
+
+  if (!subscriptionActive){
+    previewArea.innerHTML = '';
+    codeBox.value = '';
+    return;
+  }
+
+  if (!placeId){
+    previewArea.innerHTML = '<p style="font-size:13px;color:var(--text-dim);margin:0;">Link your Google Places ID above first — your badge code will appear here once it\'s saved.</p>';
+    codeBox.value = '';
+    return;
+  }
+
+  const badgeHtml = buildBadgeHtml(placeId);
+  previewArea.innerHTML = badgeHtml;
+  codeBox.value = badgeHtml;
+}
+
+function copyBadgeCode(){
+  const codeBox = document.getElementById('badgeCodeBox');
+  if (!codeBox.value){
+    showMsg('badgeMsg', 'Link your Google Places ID and subscribe first to get your badge code.', 'error');
+    return;
+  }
+  codeBox.select();
+  navigator.clipboard.writeText(codeBox.value).then(() => {
+    showMsg('badgeMsg', 'Copied! Paste this into your website\'s HTML.', 'success');
+  }).catch(() => {
+    showMsg('badgeMsg', 'Could not copy automatically — select the text above and copy it manually.', 'error');
+  });
 }
 
 function handleMenuSelected(event){
