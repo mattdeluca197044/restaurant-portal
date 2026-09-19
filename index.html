@@ -231,10 +231,16 @@
       <button class="logout" onclick="logout()">Log out</button>
       <h2 id="welcomeName">Dashboard</h2>
 
-      <div id="subscriptionBox" style="padding:14px 16px;border-radius:6px;margin:16px 0;background:var(--paper-dim);">
+        <div id="subscriptionBox" style="padding:14px 16px;border-radius:6px;margin:16px 0;background:var(--paper-dim);">
         <div id="subStatusText" style="font-size:14px;"></div>
+        <div id="subscribeAgreementRow" style="display:none;margin-top:12px;font-size:12.5px;color:var(--text-dim);line-height:1.4;">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="agreeSubscriberTerms" style="margin-top:2px;flex-shrink:0;">
+            <span>I agree to the <a href="https://outtoeat.com.au/subscriber-agreement.html" target="_blank" rel="noopener" style="color:var(--ink);">Subscriber Agreement</a> and <a href="https://outtoeat.com.au/privacy.html" target="_blank" rel="noopener" style="color:var(--ink);">Privacy Policy</a>.</span>
+          </label>
+        </div>
         <button id="subscribeBtn" onclick="startCheckout()" style="display:none;margin-top:10px;">Subscribe — $29/month</button>
-      </div>
+      </div>   
 
       <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 4px;">Linked Google listing</h3>
       <label>Google Places ID</label>
@@ -602,17 +608,19 @@ async function loadSubscriptionStatus(){
     const isActive = data.restaurant.subscription_status === 'active';
     subscriptionActive = isActive;
 
-    if (isActive){
+       if (isActive){
       statusText.innerHTML = '✅ <strong>Subscription active</strong> — your listing can accept bookings.';
       subBtn.style.display = 'none';
+      document.getElementById('subscribeAgreementRow').style.display = 'none';
       profileLocked.style.display = 'none';
       saveProfileBtn.disabled = false;
       photosLocked.style.display = 'none';
       menuLocked.style.display = 'none';
       badgeLocked.style.display = 'none';
-    } else {
+    }     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
+      document.getElementById('subscribeAgreementRow').style.display = 'block';
       profileLocked.style.display = 'block';
       saveProfileBtn.disabled = true;
       photosLocked.style.display = 'block';
@@ -970,6 +978,10 @@ async function deleteMenu(){
 }
 
 async function startCheckout(){
+  if (!document.getElementById('agreeSubscriberTerms').checked){
+    alert('Please agree to the Subscriber Agreement and Privacy Policy before subscribing.');
+    return;
+  }
   const subBtn = document.getElementById('subscribeBtn');
   subBtn.disabled = true;
   subBtn.textContent = 'Redirecting to payment...';
