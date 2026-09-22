@@ -273,8 +273,10 @@
       <input id="profileName" type="text" placeholder="Your Restaurant Name" maxlength="200">
       <label>Address <span style="font-weight:400;color:var(--text-dim);">(overrides the address shown from Google)</span></label>
       <input id="profileAddress" type="text" placeholder="123 Example St, Suburb NSW 2000" maxlength="300">
-      <label>Description</label>
+           <label>Description</label>
       <textarea id="profileDescription" rows="4" placeholder="Tell customers what makes your place special..." style="width:100%;padding:10px 12px;font-size:14px;border:1px solid var(--line);border-radius:4px;font-family:'Work Sans',sans-serif;resize:vertical;"></textarea>
+      <button type="button" class="secondary" id="generateDescBtn" onclick="generateDescription()" style="margin-top:8px;">✨ Generate for me</button>
+      <div id="generateDescMsg"></div>
       <label>Instagram URL</label>
       <input id="profileInstagram" type="text" placeholder="https://instagram.com/yourrestaurant">
       <label>Facebook URL</label>
@@ -617,7 +619,7 @@ async function loadSubscriptionStatus(){
       photosLocked.style.display = 'none';
       menuLocked.style.display = 'none';
       badgeLocked.style.display = 'none';
-    }     } else {
+     } else {
       statusText.innerHTML = '⚠️ <strong>No active subscription</strong> — subscribe to enable bookings on your listing.';
       subBtn.style.display = 'block';
       document.getElementById('subscribeAgreementRow').style.display = 'block';
@@ -669,8 +671,38 @@ function collectHours(){
   });
   return Object.keys(hours).length ? hours : null;
 }
+async function generateDescription(){
+  const btn = document.getElementById('generateDescBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  document.getElementById('generateDescMsg').innerHTML = '';
 
+  const cuisine = document.getElementById('profileSpecial').value.trim(); // reuse whatever context is already filled in
+  const currentSpecial = document.getElementById('profileSpecial').value.trim();
+
+  try {
+    const res = await fetch(`${API}/generate-description`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${token}`},
+      body: JSON.stringify({ currentSpecial })
+    });
+    const data = await res.json();
+    if (!res.ok){
+      showMsg('generateDescMsg', data.error || 'Could not generate a description.', 'error');
+      return;
+    }
+    document.getElementById('profileDescription').value = data.description;
+    showMsg('generateDescMsg', 'Draft generated — feel free to edit it before saving.', 'success');
+  } catch(err){
+    showMsg('generateDescMsg', 'Something went wrong: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 async function saveProfile(){
+
   const name = document.getElementById('profileName').value.trim();
   if (!name){
     showMsg('profileMsg', 'Restaurant name is required.', 'error');
@@ -851,7 +883,7 @@ function renderMenuArea(){
       </div>
     `;
     uploadBtn.textContent = 'Replace menu (PDF)';
-  } else {
+      } else {
     area.innerHTML = '';
     uploadBtn.textContent = '+ Upload menu (PDF)';
   }
